@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Money Breakdown Tool (Pro)</title>
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<!-- jsPDF for PDF Export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+:root{
+  --bg:#0b0b0b;
+  --card:#111;
+  --text:#fff;
+  --muted:rgba(255,255,255,.65);
+  --line:rgba(255,255,255,.12);
+  --gold:#d4af37;
+  --gold2:#b9922a;
+  --danger:#ff5a5f;
+  --radius:16px;
+}
+
+*{box-sizing:border-box}
+
+body{
+  margin:0;
+  padding:20px;
+  background:radial-gradient(900px 600px at 20% -10%, rgba(212,175,55,.15), transparent 50%),var(--bg);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+  max-width:900px;
+}
+
+h1{
+  margin:0 0 6px;
+  font-size:22px;
+}
+
+.sub{
+  font-size:13px;
+  color:var(--muted);
+  margin-bottom:14px;
+}
+
+.card{
+  background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:14px;
+  margin-bottom:16px;
+}
+
+label{
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  color:var(--muted);
+  display:block;
+  margin-bottom:6px;
+}
+
+input{
+  width:100%;
+  padding:12px;
+  font-size:16px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,.15);
+  background:#000;
+  color:#fff;
+}
+
+input:focus{
+  outline:none;
+  border-color:var(--gold);
+}
+
+.row{
+  display:flex;
+  gap:10px;
+  margin-top:12px;
+  flex-wrap:wrap;
+}
+
+button{
+  padding:12px;
+  border-radius:12px;
+  border:1px solid transparent;
+  cursor:pointer;
+  font-size:15px;
+}
+
+.primary{
+  background:linear-gradient(180deg,var(--gold),var(--gold2));
+  color:#111;
+  font-weight:800;
+}
+
+.secondary{
+  background:rgba(255,255,255,.06);
+  color:#fff;
+  border-color:var(--line);
+}
+
+.danger{
+  background:rgba(255,90,95,.12);
+  color:#ffd2d3;
+  border-color:rgba(255,90,95,.35);
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:10px;
+}
+
+th,td{
+  padding:10px;
+  border-bottom:1px solid var(--line);
+  text-align:left;
+}
+
+th{
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  color:var(--muted);
+}
+
+.total{
+  font-weight:800;
+  background:rgba(212,175,55,.08);
+}
+
+.status{
+  margin-top:10px;
+  padding:10px;
+  border-radius:12px;
+  font-size:13px;
+}
+
+.status.bad{
+  background:rgba(255,90,95,.12);
+  border:1px solid rgba(255,90,95,.35);
+  color:#ffd2d3;
+}
+
+.status.ok{
+  background:rgba(212,175,55,.10);
+  border:1px solid rgba(212,175,55,.35);
+}
+
+.watermark{
+  position:fixed;
+  bottom:12px;
+  right:12px;
+  opacity:.12;
+  font-weight:900;
+  letter-spacing:.25em;
+  color:var(--gold);
+  pointer-events:none;
+}
+</style>
+</head>
+
+<body>
+
+<h1>💰 Money Breakdown Tool (Pro)</h1>
+<div class="sub">Domain Global • Pro Financial Allocation Tool</div>
+
+<div class="card">
+  <label>Total Amount</label>
+  <input id="amount" placeholder="e.g. 5000">
+</div>
+
+<div class="card">
+  <table id="categoryTable">
+    <thead>
+      <tr>
+        <th>Category</th>
+        <th>%</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div class="row">
+    <button class="secondary" onclick="addCategory()">+ Add Category</button>
+  </div>
+
+  <div id="percentStatus" class="status ok">Total Allocation: <b id="pctTotal">100%</b></div>
+</div>
+
+<div class="card">
+  <div class="row">
+    <button class="primary" onclick="calculate()">Calculate</button>
+    <button class="secondary" onclick="exportPDF()">Export PDF</button>
+    <button class="danger" onclick="resetAll()">Reset</button>
+  </div>
+
+  <table id="results" style="display:none">
+    <thead>
+      <tr>
+        <th>Category</th>
+        <th>%</th>
+        <th>Amount</th>
+      </tr>
+    </thead>
+    <tbody id="resultsBody"></tbody>
+    <tfoot>
+      <tr class="total">
+        <td>Total</td>
+        <td>100%</td>
+        <td id="totalAmount"></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<div class="watermark">PRO</div>
+
+<script>
+let categories = [
+  {name:"Living Expenses", pct:50},
+  {name:"Taxes", pct:20},
+  {name:"Savings", pct:10},
+  {name:"Investing", pct:10},
+  {name:"Fun Money", pct:10}
+];
+
+const tbody = document.querySelector("#categoryTable tbody");
+
+function renderCategories(){
+  tbody.innerHTML="";
+  categories.forEach((c,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td><input value="${c.name}" oninput="categories[${i}].name=this.value"></td>
+      <td><input type="number" value="${c.pct}" min="0" oninput="categories[${i}].pct=Number(this.value);updatePct()"></td>
+      <td><button class="danger" onclick="removeCategory(${i})">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  updatePct();
+}
+
+function updatePct(){
+  const total = categories.reduce((a,c)=>a+c.pct,0);
+  document.getElementById("pctTotal").textContent=total+"%";
+  const box=document.getElementById("percentStatus");
+  if(total>100){
+    box.className="status bad";
+    box.innerHTML="⚠ Total exceeds 100%";
+  }else{
+    box.className="status ok";
+    box.innerHTML=`Total Allocation: <b>${total}%</b>`;
+  }
+}
+
+function addCategory(){
+  categories.push({name:"New Category", pct:0});
+  renderCategories();
+}
+
+function removeCategory(i){
+  categories.splice(i,1);
+  renderCategories();
+}
+
+function calculate(){
+  const totalAmount=Number(document.getElementById("amount").value);
+  if(!totalAmount) return alert("Enter a valid amount");
+  const pctSum=categories.reduce((a,c)=>a+c.pct,0);
+  if(pctSum!==100) return alert("Percentages must equal 100%");
+  const body=document.getElementById("resultsBody");
+  body.innerHTML="";
+  categories.forEach(c=>{
+    const val=(totalAmount*(c.pct/100)).toFixed(2);
+    body.innerHTML+=`<tr><td>${c.name}</td><td>${c.pct}%</td><td>$${val}</td></tr>`;
+  });
+  document.getElementById("totalAmount").textContent="$"+totalAmount.toFixed(2);
+  document.getElementById("results").style.display="table";
+}
+
+function exportPDF(){
+  calculate();
+  const {jsPDF}=window.jspdf;
+  const pdf=new jsPDF();
+  pdf.text("Money Breakdown Tool (Pro)",14,16);
+  let y=30;
+  categories.forEach(c=>{
+    pdf.text(`${c.name} - ${c.pct}%`,14,y);
+    y+=8;
+  });
+  pdf.save("Money_Breakdown_Pro.pdf");
+}
+
+function resetAll(){
+  location.reload();
+}
+
+renderCategories();
+</script>
+
+</body>
+</html>
